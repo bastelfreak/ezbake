@@ -4,6 +4,37 @@ require 'open3'
 require 'optparse'
 require 'ostruct'
 
+def patch_files(options)
+  if options.java_bin == EZBake::Config[:java_bin]
+    yield
+  else
+    suffix = '.backup'
+    [
+      # Debian
+      '/etc/default/puppet*',
+      '/lib/systemd/system/puppet*.service',
+      # RPM
+      '/usr/lib/systemd/system/puppet*.service',
+      '/etc/sysconfig/puppet*',
+    ].each do |path|
+      Dir.glob(File.join(options.chdir, path)).each do |real_path|
+        content = File.read(real_path)
+        if content.include?(EZBake::Config[:java_bin])
+          FileUtils.cp(real_path, "#{real_path}#{suffix}")
+          File.write(real_path, content.gsub(EZBake::Config[:java_bin], options.java_bin))
+        end
+      end
+    end
+
+    yield
+
+    Dir.glob(File.join(options.chdir, '**', "*#{suffix}")).each do |path|
+      target = File.join(File.dirname(path), File.basename(path, suffix))
+      FileUtils.mv(path, target)
+    end
+  end
+end
+
 options = OpenStruct.new
 
 # ezbake.rb is rendered from
@@ -432,22 +463,24 @@ if options.debug
   puts "#{Dir.pwd}"
 end
 
-# fpm sends all output to stdout
-out, _, stat = Open3.capture3("#{fpm_editor} fpm #{fpm_opts.join(' ')}")
-fail "Error trying to run FPM for #{options.dist}!\n#{out}" unless stat.success?
-
-puts "#{out}"
-
-if options.termini
-  if options.debug
-    puts "=========================="
-    puts "FPM COMMAND"
-    puts "fpm #{termini_opts.join(' ')}"
-    puts "=========================="
-  end
-
+patch_files(options) do
   # fpm sends all output to stdout
-  out, _, stat = Open3.capture3("fpm #{termini_opts.join(' ')}")
-  fail "Error trying to run FPM for the termini for #{options.dist}!\n#{out}" unless stat.success?
+  out, _, stat = Open3.capture3("#{fpm_editor} fpm #{fpm_opts.join(' ')}")
+  fail "Error trying to run FPM for #{options.dist}!\n#{out}" unless stat.success?
+
   puts "#{out}"
+
+  if options.termini
+    if options.debug
+      puts "=========================="
+      puts "FPM COMMAND"
+      puts "fpm #{termini_opts.join(' ')}"
+      puts "=========================="
+    end
+
+    # fpm sends all output to stdout
+    out, _, stat = Open3.capture3("fpm #{termini_opts.join(' ')}")
+    fail "Error trying to run FPM for the termini for #{options.dist}!\n#{out}" unless stat.success?
+    puts "#{out}"
+  end
 end
