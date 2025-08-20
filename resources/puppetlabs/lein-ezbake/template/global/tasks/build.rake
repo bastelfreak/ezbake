@@ -1,20 +1,21 @@
 require 'json'
+require 'open3'
 
 namespace :pl do
   desc "do a local build"
   task :local_build do
-    # If we have a dirty source, bail, because changes won't get reflected in
-    # the package builds
-    Pkg::Util::Git.fail_on_dirty_source
 
-    Pkg::Util::RakeUtils.invoke_task("package:tar")
+    # was formerly in the clean rake task in packaging
+    Open3.capture3(%(rm -rf pkg))
+
+    Rake::Task['package:tar'].invoke
     # where we want the packages to be copied to for the local build
     nested_output = '../../../output'
     pkg_path = '../pkg'
     staging_path = 'pkg_artifacts'
     FileUtils.cp(Dir.glob("pkg/*.gz").join(''), FileUtils.pwd)
     # unpack the tarball we made during the build step
-    stdout, stderr, exitstatus = Pkg::Util::Execution.capture3(%(tar xf #{Dir.glob("*.gz").join('')}))
+    stdout, stderr, exitstatus = Open3.capture3(%(tar xf #{Dir.glob("*.gz").join('')}))
     Pkg::Util::Execution.success?(exitstatus) or raise "Error unpacking tarball: #{stderr}"
     Dir.chdir("#{Pkg::Config.project}-#{Pkg::Config.version}") do
       Pkg::Config.final_mocks.split(" ").each do |mock|
@@ -24,7 +25,7 @@ namespace :pl do
         puts "===================================="
         puts "Packaging for #{os} #{ver}"
         puts "===================================="
-        stdout, stderr, exitstatus = Pkg::Util::Execution.capture3(%(bash controller.sh #{os} #{ver} #{staging_path}))
+        stdout, stderr, exitstatus = Open3.capture3(%(bash controller.sh #{os} #{ver} #{staging_path}))
         Pkg::Util::Execution.success?(exitstatus) or raise "Error running packaging: #{stdout}\n#{stderr}"
         puts "#{stdout}\n#{stderr}"
 
@@ -57,7 +58,7 @@ namespace :pl do
         puts "===================================="
         puts "Packaging for #{platform}"
         puts "===================================="
-        stdout, stderr, exitstatus = Pkg::Util::Execution.capture3(%(bash controller.sh debian #{platform} #{staging_path}))
+        stdout, stderr, exitstatus = Open3.capture3(%(bash controller.sh debian #{platform} #{staging_path}))
         Pkg::Util::Execution.success?(exitstatus) or raise "Error running packaging: #{stdout}\n#{stderr}"
         puts "#{stdout}\n#{stderr}"
         FileUtils.cp(Dir.glob("*#{platform}*.deb"), "#{pkg_path}/#{platform_path}")
@@ -65,13 +66,5 @@ namespace :pl do
       FileUtils.cp_r(pkg_path, nested_output)
       FileUtils.rm_r(staging_path)
     end
-  end
-
-  desc "get the property and bundle artifacts ready"
-  task :prep_artifacts, [:output_dir] => "pl:fetch" do |t, args|
-    props = Pkg::Config.config_to_yaml
-    bundle = Pkg::Util::Git.git_bundle('HEAD')
-    FileUtils.cp(props, "#{args[:output_dir]}/BUILD_PROPERTIES")
-    FileUtils.cp(bundle, "#{args[:output_dir]}/PROJECT_BUNDLE")
   end
 end
