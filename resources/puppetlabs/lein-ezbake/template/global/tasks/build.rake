@@ -2,7 +2,7 @@ require 'json'
 
 namespace :pl do
   desc "do a local build"
-  task :local_build => "pl:fetch" do
+  task :local_build do
     # If we have a dirty source, bail, because changes won't get reflected in
     # the package builds
     Pkg::Util::Git.fail_on_dirty_source
