@@ -547,22 +547,6 @@ Additional uberjar dependencies:
             timestamp)
     "1"))
 
-;; TODO: this is a horrible, horrible hack; I can't yet see a good way to
-;; let the packaging library know what the version number is without faking
-;; up a git tag; it seems like the packaging code is pretty well hard-coded
-;; to try to pull this info from git.
-(defn create-git-repo
-  [lein-project timestamp]
-  (lein-main/info "Creating temporary git repo")
-  (exec/exec "git" "init" staging-dir)
-  (lein-main/info "Adding all files to git repo")
-  (staging-dir-git-cmd "add" "*")
-  (lein-main/info "Committing git repo")
-  (staging-dir-git-cmd "commit" "-m" "'Temporary git repo to house packaging code'")
-  (let [git-tag (generate-git-tag-from-version (:version lein-project) timestamp)]
-    (lein-main/info "Tagging git repo at" git-tag)
-    (staging-dir-git-cmd "tag" "-a" git-tag "-m" "Tag for packaging code")))
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; File templates
 
@@ -973,8 +957,7 @@ Additional uberjar dependencies:
         (generate-project-data-yaml project-w-deployed-version build-target additional-uberjar-filenames)
         (generate-manifest-file project-w-deployed-version additional-uberjar-info))
       (generate-build-metadata-files lein-project)
-      (generate-dockerfile lein-project additional-uberjar-filenames)
-      (create-git-repo lein-project timestamp))))
+      (generate-dockerfile lein-project additional-uberjar-filenames))))
 
 (defmethod action "docker-build"
   [_ lein-project build-target]
