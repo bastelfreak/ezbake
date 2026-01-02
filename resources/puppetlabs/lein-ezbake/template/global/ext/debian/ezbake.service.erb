@@ -19,7 +19,7 @@ Wants=<%= EZBake::Config[:start_after].map {|dep| "#{dep}.service" }.join(" ") %
 <% end -%>
 
 [Service]
-Type=exec
+Type=notify
 LogsDirectory=puppetlabs/<%= EZBake::Config[:real_name] %>
 RuntimeDirectory=puppetlabs/<%= EZBake::Config[:real_name] %>
 EnvironmentFile=/etc/default/<%= EZBake::Config[:project] %>
